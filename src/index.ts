@@ -10,6 +10,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
+import { connectionManager } from "./connection-manager.js";
+
 import {
   listCoresTool,
   coreStatusTool,
@@ -154,6 +156,7 @@ async function main() {
   // Graceful shutdown
   process.on("SIGINT", async () => {
     console.error("[q-sys-mcp] Shutting down...");
+    await connectionManager.disconnectAll();
     process.exit(0);
   });
 }
