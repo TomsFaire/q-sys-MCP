@@ -7,58 +7,78 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
-  Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-/**
- * Initialize MCP server
- */
+import {
+  listCoresTool,
+  coreStatusTool,
+  handleListCores,
+  handleCoreStatus,
+} from "./tools/connection.js";
+
+// ---------------------------------------------------------------------------
+// Tool registry — add new tools here as waves are implemented
+// ---------------------------------------------------------------------------
+
+const TOOLS = [listCoresTool, coreStatusTool];
+
+type ToolHandler = (params: Record<string, unknown>) => Promise<string>;
+
+const HANDLERS: Record<string, ToolHandler> = {
+  qsys_list_cores: () => handleListCores(),
+  qsys_core_status: (params) => handleCoreStatus(params),
+};
+
+// ---------------------------------------------------------------------------
+// MCP server
+// ---------------------------------------------------------------------------
+
 const server = new Server(
-  {
-    name: "q-sys-mcp",
-    version: "0.1.0",
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
+  { name: "q-sys-mcp", version: "0.1.0" },
+  { capabilities: { tools: {} } }
 );
 
-/**
- * Handle tool listing
- */
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  // TODO: Return actual tools from tools/* modules
-  // For now, return empty list (scaffolding phase)
-  return {
-    tools: [] as Tool[],
-  };
-});
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
-/**
- * Handle tool calls
- */
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  // TODO: Route to appropriate tool handler
-  return {
-    content: [
-      {
-        type: "text",
-        text: `Tool '${request.params.name}' not yet implemented`,
-      },
-    ],
-  };
+  const { name, arguments: args = {} } = request.params;
+  const params = args as Record<string, unknown>;
+
+  const handler = HANDLERS[name];
+  if (!handler) {
+    return {
+      content: [{ type: "text", text: `Unknown tool: ${name}` }],
+      isError: true,
+    };
+  }
+
+  try {
+    const text = await handler(params);
+    return { content: [{ type: "text", text }] };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      content: [{ type: "text", text: `Error: ${message}` }],
+      isError: true,
+    };
+  }
 });
 
-/**
- * Start server
- */
+// ---------------------------------------------------------------------------
+// Startup
+// ---------------------------------------------------------------------------
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("Q-Sys MCP server running on stdio");
+  console.error("[q-sys-mcp] Server running on stdio");
+
+  // Graceful shutdown
+  process.on("SIGINT", async () => {
+    console.error("[q-sys-mcp] Shutting down...");
+    process.exit(0);
+  });
 }
 
 main().catch((error) => {
