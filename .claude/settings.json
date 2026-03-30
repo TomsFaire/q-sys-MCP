@@ -1,7 +1,0 @@
-{
-  "model": "sonnet",
-  "availableModels": ["haiku", "sonnet", "opus"],
-  "permissions": {
-    "allow": []
-  }
-}

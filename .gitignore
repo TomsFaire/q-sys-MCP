@@ -12,13 +12,21 @@ dist/
 .env.local
 .env.*.local
 
-# IDE
+# IDE / local tooling
 .vscode/
 .idea/
+.cursor/
+.claude/
 *.swp
 *.swo
 *~
 .DS_Store
+Icon*
+
+# Internal planning docs (local only)
+docs/
+plan.md
+CLAUDE.md
 
 # Worktrees (isolated development branches)
 .worktrees/
