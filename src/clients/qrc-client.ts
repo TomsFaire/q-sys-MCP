@@ -17,6 +17,7 @@ const DEFAULT_PORT = 1710;
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const BASE_RECONNECT_DELAY_MS = 500;
+const KEEPALIVE_INTERVAL_MS = 55_000;
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
@@ -35,6 +36,7 @@ export class QrcClient implements IQrcClient {
   private reconnecting: boolean = false;
   private destroyed: boolean = false;
   private reconnectDelay: number = BASE_RECONNECT_DELAY_MS;
+  private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
   private nextId: number = 1;
   private pending: Map<number, PendingRequest> = new Map();
@@ -110,6 +112,7 @@ export class QrcClient implements IQrcClient {
    */
   async disconnect(): Promise<void> {
     this.destroyed = true;
+    this.stopKeepAlive();
     this.rejectAllPending(new Error("QRC client disconnected"));
     if (this.socket) {
       this.socket.destroy();
@@ -141,6 +144,7 @@ export class QrcClient implements IQrcClient {
         this.connected = true;
         this.reconnectDelay = BASE_RECONNECT_DELAY_MS;
         this.buffer = "";
+        this.startKeepAlive();
         resolve();
       });
 
@@ -205,6 +209,7 @@ export class QrcClient implements IQrcClient {
   private handleDisconnect(reason: string): void {
     if (!this.connected) return;
     this.connected = false;
+    this.stopKeepAlive();
     this.rejectAllPending(new Error(`QRC disconnected: ${reason}`));
 
     if (!this.destroyed) {
@@ -241,6 +246,22 @@ export class QrcClient implements IQrcClient {
       clearTimeout(pending.timer);
       pending.reject(error);
       this.pending.delete(id);
+    }
+  }
+
+  private startKeepAlive(): void {
+    this.stopKeepAlive();
+    this.keepAliveTimer = setInterval(() => {
+      if (this.connected && !this.destroyed) {
+        this.call("NoOp").catch(() => { /* ignore — disconnect handler fires */ });
+      }
+    }, KEEPALIVE_INTERVAL_MS);
+  }
+
+  private stopKeepAlive(): void {
+    if (this.keepAliveTimer !== null) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
     }
   }
 }

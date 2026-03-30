@@ -2,16 +2,27 @@
  * WsQrcClient — QRC (JSON-RPC 2.0) over WebSocket (QRWC, port 443)
  *
  * Q-SYS Remote WebSocket Control (BETA) exposes the same JSON-RPC protocol
- * as plain QRC but over a WebSocket connection to wss://<host>:<port>/qrc.
+ * as plain QRC but over a WebSocket connection.
+ *
+ * Connection URL: wss://<host>:<port>/qrc-public-api/v0
+ * Live-tested against a Q-Sys Core 8 Flex: wss + /qrc-public-api/v0 required.
+ * The Core uses TLS on port 443 with a self-signed certificate, so
+ * rejectUnauthorized:false is applied when tls=true (the default).
+ * The @q-sys/qrwc npm library shows ws:// in its README, but that reflects
+ * the local Designer emulator — production Cores require wss://.
+ *
+ * Upon connection the Core immediately sends an unsolicited EngineStatus
+ * notification (no id). These are silently dropped by handleMessage since
+ * they have no pending id; the same data is returned by StatusGet.
  *
  * Differences from QrcClient (TCP):
  * - Uses WebSocket text frames instead of null-byte-delimited TCP stream.
  *   No buffer management needed; each frame is one complete JSON message.
- * - Connects to wss:// so TLS is always on.
- * - Core ships a self-signed certificate — rejectUnauthorized: false is required.
+ * - Sends a periodic NoOp keep-alive (every 55s) to satisfy the Core's
+ *   60-second idle-disconnect policy, same as QrcClient.
  *
- * Otherwise the protocol (JSON-RPC 2.0, same methods, same ID scheme) is identical,
- * so all tool code works unchanged through the IQrcClient interface.
+ * Otherwise the protocol (JSON-RPC 2.0, same methods, same ID scheme) is
+ * identical, so all tool code works unchanged through the IQrcClient interface.
  *
  * Reconnect strategy mirrors QrcClient: exponential backoff 500ms → 30s.
  */
@@ -23,6 +34,8 @@ const DEFAULT_PORT = 443;
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const BASE_RECONNECT_DELAY_MS = 500;
+const KEEPALIVE_INTERVAL_MS = 55_000;
+const WS_PATH = "/qrc-public-api/v0";
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
@@ -33,6 +46,7 @@ interface PendingRequest {
 export class WsQrcClient implements IQrcClient {
   private host: string;
   private port: number;
+  private tls: boolean;
   private timeoutMs: number;
   private url: string;
 
@@ -41,15 +55,23 @@ export class WsQrcClient implements IQrcClient {
   private reconnecting: boolean = false;
   private destroyed: boolean = false;
   private reconnectDelay: number = BASE_RECONNECT_DELAY_MS;
+  private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
   private nextId: number = 1;
   private pending: Map<number, PendingRequest> = new Map();
 
-  constructor(host: string, port: number = DEFAULT_PORT, timeoutMs: number = DEFAULT_TIMEOUT_MS) {
+  constructor(
+    host: string,
+    port: number = DEFAULT_PORT,
+    timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    tls: boolean = true,
+  ) {
     this.host = host;
     this.port = port;
+    this.tls = tls;
     this.timeoutMs = timeoutMs;
-    this.url = `wss://${host}:${port}/qrc`;
+    const scheme = tls ? "wss" : "ws";
+    this.url = `${scheme}://${host}:${port}${WS_PATH}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -109,6 +131,7 @@ export class WsQrcClient implements IQrcClient {
 
   async disconnect(): Promise<void> {
     this.destroyed = true;
+    this.stopKeepAlive();
     this.rejectAllPending(new Error("QRWC client disconnected"));
     if (this.ws) {
       this.ws.terminate();
@@ -124,8 +147,8 @@ export class WsQrcClient implements IQrcClient {
   private performConnect(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(this.url, {
-        // Core ships a self-signed certificate — skip verification
-        rejectUnauthorized: false,
+        // Only applies when tls=true; Core ships self-signed certs in many installs
+        ...(this.tls ? { rejectUnauthorized: false } : {}),
       });
       this.ws = ws;
 
@@ -138,6 +161,7 @@ export class WsQrcClient implements IQrcClient {
         clearTimeout(connectTimeout);
         this.connected = true;
         this.reconnectDelay = BASE_RECONNECT_DELAY_MS;
+        this.startKeepAlive();
         resolve();
       });
 
@@ -189,6 +213,7 @@ export class WsQrcClient implements IQrcClient {
   private handleDisconnect(reason: string): void {
     if (!this.connected) return;
     this.connected = false;
+    this.stopKeepAlive();
     this.rejectAllPending(new Error(`QRWC disconnected: ${reason}`));
     if (!this.destroyed) this.scheduleReconnect();
   }
@@ -220,6 +245,22 @@ export class WsQrcClient implements IQrcClient {
       clearTimeout(pending.timer);
       pending.reject(error);
       this.pending.delete(id);
+    }
+  }
+
+  private startKeepAlive(): void {
+    this.stopKeepAlive();
+    this.keepAliveTimer = setInterval(() => {
+      if (this.connected && !this.destroyed) {
+        this.call("NoOp").catch(() => { /* ignore — disconnect handler fires */ });
+      }
+    }, KEEPALIVE_INTERVAL_MS);
+  }
+
+  private stopKeepAlive(): void {
+    if (this.keepAliveTimer !== null) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
     }
   }
 }

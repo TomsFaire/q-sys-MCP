@@ -50,13 +50,14 @@ function createMockWsServer(handler: RequestHandler): Promise<{ server: http.Ser
   });
 }
 
-// WsQrcClient hardcodes wss:// but our test server is plain ws://.
-// We patch the URL in a subclass for testing.
+// WsQrcClient builds ws[s]://<host>:<port>/qrc-public-api/v0 but our mock
+// server uses a random port and doesn't care about path.  Patch URL to plain
+// ws:// so the test-server (no TLS) accepts the connection.
 class TestWsQrcClient extends WsQrcClient {
   constructor(host: string, port: number) {
     super(host, port);
-    // Override the URL to use ws:// instead of wss://
-    (this as unknown as { url: string }).url = `ws://${host}:${port}/qrc`;
+    // Override the URL to use ws:// instead of the default scheme
+    (this as unknown as { url: string }).url = `ws://${host}:${port}/qrc-public-api/v0`;
   }
 }
 

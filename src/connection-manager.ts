@@ -130,7 +130,9 @@ export class ConnectionManager {
 
       // Parse host[:qrcPort[:ecpPort[:wsPort]]]
       // wsPort enables QRWC (WebSocket QRC) instead of plain TCP QRC.
-      // Omit qrcPort/ecpPort with empty segments to use defaults: alias=host:::443
+      // QRWC connects to ws://<host>:<wsPort>/qrc-public-api/v0 — same JSON-RPC
+      // methods as TCP QRC, per @q-sys/qrwc source.  Default port is 443.
+      // Use empty segments to override only wsPort: alias=host:::443
       const parts = rest.split(":");
       const host = parts[0];
       const qrcPort = parts[1] ? parseInt(parts[1], 10) : undefined;
