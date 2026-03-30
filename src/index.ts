@@ -35,6 +35,26 @@ import {
   handleSetComponentControls,
 } from "./tools/components.js";
 
+import {
+  listSnapshotsTool,
+  loadSnapshotTool,
+  saveSnapshotTool,
+  runLuaTool,
+  handleListSnapshots,
+  handleLoadSnapshot,
+  handleSaveSnapshot,
+  handleRunLua,
+} from "./tools/snapshots.js";
+
+import {
+  createChangeGroupTool,
+  pollChangeGroupTool,
+  destroyChangeGroupTool,
+  handleCreateChangeGroup,
+  handlePollChangeGroup,
+  handleDestroyChangeGroup,
+} from "./tools/change-groups.js";
+
 // ---------------------------------------------------------------------------
 // Tool registry — add new tools here as waves are implemented
 // ---------------------------------------------------------------------------
@@ -51,6 +71,15 @@ const TOOLS = [
   listComponentsTool,
   getComponentControlsTool,
   setComponentControlsTool,
+  // Snapshots & Lua
+  listSnapshotsTool,
+  loadSnapshotTool,
+  saveSnapshotTool,
+  runLuaTool,
+  // Change groups
+  createChangeGroupTool,
+  pollChangeGroupTool,
+  destroyChangeGroupTool,
 ];
 
 type ToolHandler = (params: Record<string, unknown>) => Promise<string>;
@@ -67,6 +96,15 @@ const HANDLERS: Record<string, ToolHandler> = {
   qsys_list_components: (params) => handleListComponents(params),
   qsys_get_component_controls: (params) => handleGetComponentControls(params),
   qsys_set_component_controls: (params) => handleSetComponentControls(params),
+  // Snapshots & Lua
+  qsys_list_snapshots: (params) => handleListSnapshots(params),
+  qsys_load_snapshot: (params) => handleLoadSnapshot(params),
+  qsys_save_snapshot: (params) => handleSaveSnapshot(params),
+  qsys_run_lua: (params) => handleRunLua(params),
+  // Change groups
+  qsys_create_change_group: (params) => handleCreateChangeGroup(params),
+  qsys_poll_change_group: (params) => handlePollChangeGroup(params),
+  qsys_destroy_change_group: (params) => handleDestroyChangeGroup(params),
 };
 
 // ---------------------------------------------------------------------------
