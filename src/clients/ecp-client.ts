@@ -32,6 +32,10 @@ export class EcpClient {
     this.port = port;
   }
 
+  get isConnected(): boolean {
+    return this.connected;
+  }
+
   /**
    * Connect to the ECP server with exponential backoff retry
    */

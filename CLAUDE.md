@@ -17,8 +17,12 @@ TypeScript MCP server that talks to QSC Q-Sys **Cores** on the network over **QR
 
 ## Configuration
 
-- Cores are configured via env `QSYS_CORES` as `alias=ip,...` (see `plan.md`).
-- Connection policy (lazy vs eager) is decided in plan 04 — check `src/connection-manager.ts` and this file once chosen.
+- Cores are configured via env `QSYS_CORES` as comma-separated `alias=host[:qrcPort[:ecpPort]]` pairs:
+  ```
+  QSYS_CORES=sfo-allhands=10.1.1.100,nyc-display=10.2.1.100
+  ```
+- **Connection policy: LAZY** — clients connect on first tool call, not at startup. Offline Cores at boot are non-fatal; they will be retried on first use.
+- If exactly one Core is configured, the `core` parameter on all tools is optional.
 
 ## Conventions
 
