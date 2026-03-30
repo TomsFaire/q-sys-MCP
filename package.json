@@ -1,0 +1,28 @@
+{
+  "name": "q-sys-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for controlling QSC Q-Sys Cores via QRC and ECP protocols",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test": "node --test tests/**/*.test.ts"
+  },
+  "keywords": [
+    "q-sys",
+    "qsc",
+    "mcp",
+    "audio"
+  ],
+  "author": "Tom (Faire AV)",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

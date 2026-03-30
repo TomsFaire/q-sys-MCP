@@ -1,0 +1,45 @@
+/**
+ * Shared types for Q-Sys MCP Server
+ */
+
+export type CoreAlias = string;
+
+export interface CoreConfig {
+  alias: CoreAlias;
+  host: string;
+  qrcPort?: number; // default 1710
+  ecpPort?: number; // default 1702
+}
+
+export interface JsonRpcRequest {
+  jsonrpc: "2.0";
+  id?: string | number;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+export interface JsonRpcResponse {
+  jsonrpc: "2.0";
+  id?: string | number;
+  result?: unknown;
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+}
+
+export interface CoreStatus {
+  name: string;
+  designName: string;
+  isRunning: boolean;
+  platform?: string;
+  uptime?: number;
+}
+
+export enum ConnectionState {
+  Disconnected = "disconnected",
+  Connecting = "connecting",
+  Connected = "connected",
+  Error = "error",
+}
