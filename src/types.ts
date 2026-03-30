@@ -43,3 +43,17 @@ export enum ConnectionState {
   Connected = "connected",
   Error = "error",
 }
+
+/**
+ * ECP Protocol result types
+ */
+export interface EcpControlResult {
+  value: number;
+  string: string;
+  position: number;
+}
+
+export interface EcpCommandError {
+  code: string;
+  message: string;
+}
