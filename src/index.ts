@@ -17,17 +17,56 @@ import {
   handleCoreStatus,
 } from "./tools/connection.js";
 
+import {
+  getControlTool,
+  setControlTool,
+  getControlsTool,
+  handleGetControl,
+  handleSetControl,
+  handleGetControls,
+} from "./tools/controls.js";
+
+import {
+  listComponentsTool,
+  getComponentControlsTool,
+  setComponentControlsTool,
+  handleListComponents,
+  handleGetComponentControls,
+  handleSetComponentControls,
+} from "./tools/components.js";
+
 // ---------------------------------------------------------------------------
 // Tool registry — add new tools here as waves are implemented
 // ---------------------------------------------------------------------------
 
-const TOOLS = [listCoresTool, coreStatusTool];
+const TOOLS = [
+  // Connection & status
+  listCoresTool,
+  coreStatusTool,
+  // Named controls
+  getControlTool,
+  setControlTool,
+  getControlsTool,
+  // Components
+  listComponentsTool,
+  getComponentControlsTool,
+  setComponentControlsTool,
+];
 
 type ToolHandler = (params: Record<string, unknown>) => Promise<string>;
 
 const HANDLERS: Record<string, ToolHandler> = {
+  // Connection & status
   qsys_list_cores: () => handleListCores(),
   qsys_core_status: (params) => handleCoreStatus(params),
+  // Named controls
+  qsys_get_control: (params) => handleGetControl(params),
+  qsys_set_control: (params) => handleSetControl(params),
+  qsys_get_controls: (params) => handleGetControls(params),
+  // Components
+  qsys_list_components: (params) => handleListComponents(params),
+  qsys_get_component_controls: (params) => handleGetComponentControls(params),
+  qsys_set_component_controls: (params) => handleSetComponentControls(params),
 };
 
 // ---------------------------------------------------------------------------
