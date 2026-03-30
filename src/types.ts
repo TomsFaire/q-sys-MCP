@@ -9,6 +9,18 @@ export interface CoreConfig {
   host: string;
   qrcPort?: number; // default 1710
   ecpPort?: number; // default 1702
+  wsPort?: number;  // if set, use WebSocket QRC (QRWC) on this port instead of plain TCP
+}
+
+/**
+ * Shared interface implemented by both QrcClient (TCP) and WsQrcClient (WebSocket).
+ * All tool code depends only on this interface.
+ */
+export interface IQrcClient {
+  readonly isConnected: boolean;
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+  call(method: string, params?: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface JsonRpcRequest {

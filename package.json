@@ -19,10 +19,12 @@
   "author": "Tom (Faire AV)",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/ws": "^8.18.1",
     "typescript": "^5.0.0",
     "vitest": "^4.1.2"
   }

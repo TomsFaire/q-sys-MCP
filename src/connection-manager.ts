@@ -17,13 +17,14 @@
  * If exactly one Core is configured, getClients() accepts an empty alias "".
  */
 
-import { CoreAlias, CoreConfig, ConnectionState } from "./types.js";
+import { CoreAlias, CoreConfig, ConnectionState, IQrcClient } from "./types.js";
 import { QrcClient } from "./clients/qrc-client.js";
+import { WsQrcClient } from "./clients/ws-qrc-client.js";
 import { EcpClient } from "./clients/ecp-client.js";
 
 interface CoreEntry {
   config: CoreConfig;
-  qrc: QrcClient;
+  qrc: IQrcClient;
   ecp: EcpClient;
 }
 
@@ -46,7 +47,7 @@ export class ConnectionManager {
    * @param alias - Core alias as configured in QSYS_CORES.
    *                Omit or pass "" to use the default (only valid if exactly one Core configured).
    */
-  async getClients(alias: CoreAlias = ""): Promise<{ qrc: QrcClient; ecp: EcpClient }> {
+  async getClients(alias: CoreAlias = ""): Promise<{ qrc: IQrcClient; ecp: EcpClient }> {
     const resolved = this.resolveAlias(alias);
     const entry = this.entries.get(resolved);
 
@@ -127,20 +128,27 @@ export class ConnectionManager {
         throw new Error(`Duplicate Core alias "${alias}" in QSYS_CORES`);
       }
 
-      // Parse host[:qrcPort[:ecpPort]]
+      // Parse host[:qrcPort[:ecpPort[:wsPort]]]
+      // wsPort enables QRWC (WebSocket QRC) instead of plain TCP QRC.
+      // Omit qrcPort/ecpPort with empty segments to use defaults: alias=host:::443
       const parts = rest.split(":");
       const host = parts[0];
       const qrcPort = parts[1] ? parseInt(parts[1], 10) : undefined;
       const ecpPort = parts[2] ? parseInt(parts[2], 10) : undefined;
+      const wsPort  = parts[3] ? parseInt(parts[3], 10) : undefined;
 
       if (!host) {
         throw new Error(`Invalid QSYS_CORES entry "${segment}": host cannot be empty`);
       }
 
-      const config: CoreConfig = { alias, host, qrcPort, ecpPort };
+      const config: CoreConfig = { alias, host, qrcPort, ecpPort, wsPort };
+      const qrc: IQrcClient = wsPort !== undefined
+        ? new WsQrcClient(host, wsPort)
+        : new QrcClient(host, qrcPort);
+
       this.entries.set(alias, {
         config,
-        qrc: new QrcClient(host, qrcPort),
+        qrc,
         ecp: new EcpClient(host, ecpPort),
       });
     }
