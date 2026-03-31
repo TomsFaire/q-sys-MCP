@@ -26,6 +26,7 @@ interface CoreEntry {
   config: CoreConfig;
   qrc: IQrcClient;
   ecp: EcpClient;
+  tcpQrc: QrcClient | null; // TCP fallback for methods unsupported over QRWC (e.g. Lua.Execute)
 }
 
 export class ConnectionManager {
@@ -87,6 +88,23 @@ export class ConnectionManager {
   }
 
   /**
+   * Get the TCP QRC fallback client for a Core, if one is available.
+   * Only present when the Core was configured with a wsPort (QRWC as primary).
+   * Connects lazily; returns null if no TCP fallback is configured.
+   * The caller should catch connection errors and handle them gracefully.
+   */
+  async getTcpQrcFallback(alias: CoreAlias = ""): Promise<QrcClient | null> {
+    const resolved = this.resolveAlias(alias);
+    const entry = this.entries.get(resolved);
+    if (!entry?.tcpQrc) return null;
+
+    if (!entry.tcpQrc.isConnected) {
+      await entry.tcpQrc.connect();
+    }
+    return entry.tcpQrc;
+  }
+
+  /**
    * Disconnect all Cores and clean up.
    */
   async disconnectAll(): Promise<void> {
@@ -94,6 +112,7 @@ export class ConnectionManager {
       [...this.entries.values()].flatMap((entry) => [
         entry.qrc.disconnect(),
         entry.ecp.disconnect(),
+        ...(entry.tcpQrc ? [entry.tcpQrc.disconnect()] : []),
       ])
     );
   }
@@ -148,10 +167,17 @@ export class ConnectionManager {
         ? new WsQrcClient(host, wsPort)
         : new QrcClient(host, qrcPort);
 
+      // When QRWC is the primary transport, keep a TCP QRC client as fallback
+      // for methods not supported over WebSocket (e.g. Lua.Execute).
+      const tcpQrc: QrcClient | null = wsPort !== undefined
+        ? new QrcClient(host, qrcPort)
+        : null;
+
       this.entries.set(alias, {
         config,
         qrc,
         ecp: new EcpClient(host, ecpPort),
+        tcpQrc,
       });
     }
 

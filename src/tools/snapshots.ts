@@ -237,9 +237,27 @@ export async function handleRunLua(params: Record<string, unknown>): Promise<str
 
   const { qrc } = await connectionManager.getClients(alias);
 
-  const result = (await qrc.call("Lua.Execute", { code })) as Record<string, unknown>;
+  let raw: Record<string, unknown>;
+  try {
+    raw = (await qrc.call("Lua.Execute", { code })) as Record<string, unknown>;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const isUnsupported = message.includes("-32601") || /method not found/i.test(message);
 
-  const output = result["result"] ?? result["output"] ?? result;
+    if (!isUnsupported) throw err;
+
+    // QRWC doesn't support Lua.Execute — attempt TCP QRC fallback (local network only)
+    const tcpQrc = await connectionManager.getTcpQrcFallback(alias).catch(() => null);
+    if (!tcpQrc) {
+      throw new Error(
+        "Lua.Execute is not supported over WebSocket (QRWC) and TCP QRC (port 1710) " +
+        "is unreachable — this feature requires local network access."
+      );
+    }
+    raw = (await tcpQrc.call("Lua.Execute", { code })) as Record<string, unknown>;
+  }
+
+  const output = raw["result"] ?? raw["output"] ?? raw;
   if (output === undefined || output === null) return "(no output)";
   return typeof output === "string" ? output : JSON.stringify(output, null, 2);
 }
