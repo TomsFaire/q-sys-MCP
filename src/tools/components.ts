@@ -12,6 +12,7 @@
 
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { connectionManager } from "../connection-manager.js";
+import { debugLog, isProtected } from "../config.js";
 
 // ---------------------------------------------------------------------------
 // Tool definitions
@@ -29,6 +30,10 @@ export const listComponentsTool: Tool = {
       core: {
         type: "string",
         description: "Core alias (omit if only one Core is configured).",
+      },
+      filter: {
+        type: "string",
+        description: "Optional regex to filter results by component name or type (case-insensitive).",
       },
     },
     required: [],
@@ -108,6 +113,7 @@ export const setComponentControlsTool: Tool = {
 
 export async function handleListComponents(params: Record<string, unknown>): Promise<string> {
   const alias = typeof params["core"] === "string" ? params["core"] : "";
+  const filterParam = typeof params["filter"] === "string" ? params["filter"] : null;
   const { qrc } = await connectionManager.getClients(alias);
 
   const result = (await qrc.call("Component.GetComponents")) as Record<string, unknown>[];
@@ -116,8 +122,22 @@ export async function handleListComponents(params: Record<string, unknown>): Pro
     return "No named components found in the running design.";
   }
 
-  const lines = result.map((c) => `• ${c["Name"] ?? "?"} (${c["Type"] ?? "unknown"})`);
-  return `Components in running design (${result.length}):\n${lines.join("\n")}`;
+  let components = result;
+  if (filterParam) {
+    const pattern = new RegExp(filterParam, "i");
+    components = result.filter(
+      (c) => pattern.test(String(c["Name"] ?? "")) || pattern.test(String(c["Type"] ?? ""))
+    );
+    debugLog(`listComponents filter="${filterParam}" matched ${components.length}/${result.length}`);
+  }
+
+  if (components.length === 0) {
+    return `No components matched filter "${filterParam}".`;
+  }
+
+  const lines = components.map((c) => `• ${c["Name"] ?? "?"} (${c["Type"] ?? "unknown"})`);
+  const suffix = filterParam ? ` matching "${filterParam}"` : "";
+  return `Components in running design (${components.length}${suffix}):\n${lines.join("\n")}`;
 }
 
 export async function handleGetComponentControls(params: Record<string, unknown>): Promise<string> {
@@ -155,6 +175,12 @@ export async function handleSetComponentControls(params: Record<string, unknown>
   if (!component) throw new Error("'component' is required");
   if (!Array.isArray(controls) || controls.length === 0) {
     throw new Error("'controls' must be a non-empty array");
+  }
+
+  // Check for protected controls before doing anything
+  const blocked = controls.map((c) => c.name).filter(isProtected);
+  if (blocked.length > 0) {
+    throw new Error(`Write blocked — protected control(s): ${blocked.join(", ")}`);
   }
 
   // Validate and build the controls payload

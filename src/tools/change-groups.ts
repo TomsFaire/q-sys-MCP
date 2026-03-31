@@ -14,6 +14,7 @@
 
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { connectionManager } from "../connection-manager.js";
+import { config, debugLog } from "../config.js";
 
 // ---------------------------------------------------------------------------
 // Tool definitions
@@ -52,7 +53,8 @@ export const pollChangeGroupTool: Tool = {
   description:
     "Poll a change group for controls that have changed since the last poll. " +
     "Returns only the controls whose values have changed — efficient for monitoring " +
-    "live audio activity without reading every control each time.",
+    `live audio activity without reading every control each time. ` +
+    `Recommended poll interval: ${config.pollingInterval}ms (configurable via QSYS_POLLING_INTERVAL).`,
   inputSchema: {
     type: "object",
     properties: {

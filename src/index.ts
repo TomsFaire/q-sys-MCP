@@ -11,6 +11,7 @@ import {
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { connectionManager } from "./connection-manager.js";
+import { config, debugLog } from "./config.js";
 
 import {
   listCoresTool,
@@ -152,6 +153,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("[q-sys-mcp] Server running on stdio");
+  debugLog(`config: pollingInterval=${config.pollingInterval}ms, protectedPatterns=${config.protectedPatterns.length}, debug=true`);
 
   // Graceful shutdown
   process.on("SIGINT", async () => {

@@ -12,6 +12,7 @@
 
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { connectionManager } from "../connection-manager.js";
+import { isProtected } from "../config.js";
 
 // ---------------------------------------------------------------------------
 // Tool definitions
@@ -150,6 +151,7 @@ export async function handleSetControl(params: Record<string, unknown>): Promise
   const position = params["position"] as number | undefined;
 
   if (!name) throw new Error("'name' is required");
+  if (isProtected(name)) throw new Error(`Write blocked — '${name}' is a protected control`);
   if (value === undefined && position === undefined) {
     throw new Error("Provide either 'value' or 'position'");
   }

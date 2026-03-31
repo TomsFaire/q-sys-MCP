@@ -21,6 +21,7 @@ import { CoreAlias, CoreConfig, ConnectionState, IQrcClient } from "./types.js";
 import { QrcClient } from "./clients/qrc-client.js";
 import { WsQrcClient } from "./clients/ws-qrc-client.js";
 import { EcpClient } from "./clients/ecp-client.js";
+import { debugLog } from "./config.js";
 
 interface CoreEntry {
   config: CoreConfig;
@@ -61,12 +62,13 @@ export class ConnectionManager {
 
     // Lazy connect — clients handle their own reconnects after this
     if (!entry.qrc.isConnected) {
+      debugLog(`connecting QRC for "${resolved}"`);
       await entry.qrc.connect().catch((err) => {
-        // Non-fatal: caller can still try ECP, or will get an error on next call()
         console.error(`[qsys] QRC connect failed for "${resolved}": ${err.message}`);
       });
     }
     if (!entry.ecp.isConnected) {
+      debugLog(`connecting ECP for "${resolved}"`);
       await entry.ecp.connect().catch((err) => {
         console.error(`[qsys] ECP connect failed for "${resolved}": ${err.message}`);
       });
