@@ -23,13 +23,23 @@ Your browser only talks to `http://localhost` / `ws://localhost`, so you avoid s
 
 ### Features
 
+The UI is **not hardcoded to one design**. On each connection the backend calls `Component.GetComponents` / `Component.GetControls`, discovers:
+
+- every **`gain`** component (single- or multi-channel — `gain` / `gain.N` + mutes),
+- every **`mixer`** (matrix size and input/output labels come from the design),
+- every **`equalizer_parametric`** (band count from `frequency.N` controls),
+
+then registers those controls in a Change Group and sends a **`layout`** message to the browser before the first snapshot. Point `QSYS_HOST` at any Core with Script Access enabled and the tabs reflow to match.
+
 | Tab | What it controls |
 |-----|------------------|
-| **Gains** | Single-channel gain blocks (e.g. mics, music, Zoom, All Hands, speaker zones) — faders, dB readout, mute |
-| **Matrix** | Mixer crosspoint grid (e.g. 13×11) — per-cell gain, crosspoint mute, input row mute |
-| **EQ** | Parametric EQ instances — band frequency / gain / bandwidth, per-band bypass, master gain, SVG response curve |
+| **Gains** | All discovered gain blocks — faders, dB readout, mute (and global bypass when present) |
+| **Matrix** | One section per mixer component — crosspoint gain/mute, input row mute, labels from the Core |
+| **EQ** | One sidebar entry per parametric EQ — band count and parameters match the block |
 
-The backend loads a full control snapshot on connect, registers a Change Group, polls periodically, and pushes **deltas** so the UI stays aligned with the Core when something else moves a fader or route.
+Other component types (Dante, plugins, UCI, etc.) are omitted on purpose to keep the Change Group size reasonable.
+
+The backend loads a full control snapshot after discovery, polls periodically, and pushes **deltas** so the UI stays aligned when something else moves a control.
 
 ### Requirements (same as MCP tools)
 

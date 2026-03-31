@@ -2,13 +2,13 @@
 # Dev mode — runs backend (ts-node-dev) and frontend (Vite) concurrently.
 # Frontend proxies /ws → backend :3001 automatically.
 #
-# Usage: QSYS_HOST=10.4.18.1 ./dev.sh
+# Usage: ./dev.sh
+#        QSYS_HOST=10.0.0.50 ./dev.sh   # optional — omit to choose Core from the UI
 
 set -e
 cd "$(dirname "$0")"
 
-QSYS_HOST="${QSYS_HOST:-10.4.18.1}"
-export QSYS_HOST
+export QSYS_HOST="${QSYS_HOST:-}"
 export PORT=3001
 
 # Install deps if needed
@@ -36,7 +36,11 @@ free_port 5173
 
 trap 'kill %1 %2 2>/dev/null' EXIT
 
-echo "Starting backend on :3001 → Core $QSYS_HOST"
+if [ -n "$QSYS_HOST" ]; then
+  echo "Starting backend on :3001 → Core $QSYS_HOST"
+else
+  echo "Starting backend on :3001 (no QSYS_HOST — connect from the browser)"
+fi
 (cd backend && npx ts-node-dev --respawn --transpile-only src/server.ts) &
 
 # Give the backend a moment to bind before Vite starts

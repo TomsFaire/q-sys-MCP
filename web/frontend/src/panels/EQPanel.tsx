@@ -1,17 +1,11 @@
-import { useState, useCallback, useMemo } from 'react';
-import type { CoreState } from '../types.js';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import type { CoreState, UiLayout } from '../types.js';
 
 interface EQPanelProps {
   state: CoreState;
+  layout: UiLayout | null;
   setControl: (component: string, name: string, value: number | boolean) => void;
 }
-
-const EQ_BLOCKS = [
-  { id: 'Parametric_Equalizer', label: 'PEQ — Mic Group 1', bands: 5 },
-  { id: 'Parametric_Equalizer_1', label: 'PEQ — Mic Group 2', bands: 4 },
-  { id: 'Parametric_Equalizer_2', label: 'PEQ — Mic Group 3', bands: 4 },
-  { id: 'Parametric_Equalizer_3', label: 'PEQ — Output', bands: 6 },
-];
 
 const FREQ_MIN = 20;
 const FREQ_MAX = 20000;
@@ -279,18 +273,43 @@ function EqBlockEditor({ component, label, bandCount, state, setControl }: EqBlo
   );
 }
 
-export function EQPanel({ state, setControl }: EQPanelProps) {
+export function EQPanel({ state, layout, setControl }: EQPanelProps) {
   const [selected, setSelected] = useState(0);
-  const block = EQ_BLOCKS[selected];
+  const eqs = layout?.eqs ?? [];
+
+  useEffect(() => {
+    if (selected >= eqs.length) setSelected(0);
+  }, [eqs.length, selected]);
+
+  const block = eqs[selected];
+
+  if (!layout) {
+    return (
+      <div className="faire-panel max-w-lg">
+        <p className="text-body text-faire-subdued">Waiting for layout from the Core…</p>
+      </div>
+    );
+  }
+
+  if (eqs.length === 0) {
+    return (
+      <div className="faire-panel max-w-lg">
+        <p className="text-body text-faire-text">No parametric EQ found</p>
+        <p className="mt-2 text-body text-faire-subdued">
+          This design has no <code className="rounded-faire-sm bg-faire-tertiary px-1">equalizer_parametric</code> components exposed to the API.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-col gap-0 lg:flex-row">
       <aside className="w-full shrink-0 border-faire-border lg:w-56 lg:border-r lg:pr-6">
         <div className="mb-4 text-label font-medium text-faire-subdued">Equalizers</div>
         <nav className="flex flex-col gap-1">
-          {EQ_BLOCKS.map((b, i) => (
+          {eqs.map((b, i) => (
             <button
-              key={b.id}
+              key={b.name}
               type="button"
               onClick={() => setSelected(i)}
               className={`rounded-faire-sm border px-3 py-2.5 text-left text-body transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-faire-focus ${
@@ -299,7 +318,8 @@ export function EQPanel({ state, setControl }: EQPanelProps) {
                   : 'border-transparent bg-transparent text-faire-subdued hover:bg-faire-secondary hover:text-faire-text'
               }`}
             >
-              {b.label}
+              {b.name}
+              <span className="text-label text-faire-subdued"> · {b.bandCount} bands</span>
             </button>
           ))}
         </nav>
@@ -310,14 +330,16 @@ export function EQPanel({ state, setControl }: EQPanelProps) {
           <h2 className="faire-heading-section">Equalizer</h2>
           <p className="mt-1 text-body text-faire-subdued">Select a block, then edit bands below.</p>
         </div>
-        <EqBlockEditor
-          key={block.id}
-          component={block.id}
-          label={block.label}
-          bandCount={block.bands}
-          state={state}
-          setControl={setControl}
-        />
+        {block && (
+          <EqBlockEditor
+            key={block.name}
+            component={block.name}
+            label={block.name}
+            bandCount={block.bandCount}
+            state={state}
+            setControl={setControl}
+          />
+        )}
       </div>
     </div>
   );

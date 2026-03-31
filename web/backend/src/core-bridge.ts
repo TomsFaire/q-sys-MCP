@@ -19,7 +19,18 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>;
 }
 
+export interface CoreBridgeOptions {
+  /**
+   * When true (default), failed connect retries with backoff until success.
+   * When false (UI-driven connect), the first failure emits `connect_failed` instead of retrying.
+   */
+  retryInitialConnect?: boolean;
+}
+
 export class CoreBridge extends EventEmitter {
+  readonly host: string;
+  readonly port: number;
+
   private url: string;
   private ws: WebSocket | null = null;
   private nextId = 1;
@@ -28,16 +39,26 @@ export class CoreBridge extends EventEmitter {
   private destroyed = false;
   private _connected = false;
   private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  private retryInitialConnect: boolean;
+  /** True after first successful WebSocket open — enables reconnect after drop */
+  private hadSuccessfulConnection = false;
+  private initialFailureEmitted = false;
 
-  constructor(host: string, port = 443) {
+  constructor(host: string, port = 443, options?: CoreBridgeOptions) {
     super();
+    this.host = host;
+    this.port = port;
+    this.retryInitialConnect = options?.retryInitialConnect ?? true;
     this.url = `wss://${host}:${port}/qrc-public-api/v0`;
   }
 
-  get connected() { return this._connected; }
+  get connected() {
+    return this._connected;
+  }
 
   connect() {
     if (this._connected || this.destroyed) return;
+    this.initialFailureEmitted = false;
     this._tryConnect();
   }
 
@@ -60,65 +81,95 @@ export class CoreBridge extends EventEmitter {
     this.destroyed = true;
     this._stopKeepalive();
     this._rejectAll(new Error('CoreBridge destroyed'));
-    this.ws?.terminate();
+    const w = this.ws;
     this.ws = null;
     this._connected = false;
+    w?.terminate();
   }
 
   // ---------------------------------------------------------------------------
 
   private _tryConnect() {
-    const ws = new WebSocket(this.url, { rejectUnauthorized: false });
-    this.ws = ws;
+    const sock = new WebSocket(this.url, { rejectUnauthorized: false });
+    this.ws = sock;
 
     const timeout = setTimeout(() => {
-      ws.terminate();
+      sock.terminate();
     }, REQUEST_TIMEOUT_MS);
 
-    ws.once('open', () => {
+    let opened = false;
+
+    sock.once('open', () => {
+      if (this.ws !== sock || this.destroyed) return;
       clearTimeout(timeout);
+      opened = true;
       this._connected = true;
+      this.hadSuccessfulConnection = true;
       this.reconnectDelay = RECONNECT_BASE_MS;
       this._startKeepalive();
       console.log(`[bridge] connected to ${this.url}`);
       this.emit('connected');
     });
 
-    ws.once('error', (err) => {
-      clearTimeout(timeout);
-      if (!this._connected) {
-        console.error(`[bridge] connect error: ${err.message}`);
-        this._scheduleReconnect();
-      }
-    });
-
-    ws.on('message', (data) => {
+    sock.on('message', (data) => {
+      if (this.ws !== sock) return;
       try {
         const msg: QrcResponse = JSON.parse(data.toString());
         this._handleMessage(msg);
-      } catch { /* ignore malformed */ }
+      } catch {
+        /* ignore malformed */
+      }
     });
 
-    ws.on('close', () => {
+    sock.on('close', () => {
+      if (this.ws !== sock) return;
+      clearTimeout(timeout);
+      if (!opened) {
+        this._handlePrematureEnd('Connection closed before open');
+        return;
+      }
       if (this._connected) {
         console.warn('[bridge] disconnected');
         this._connected = false;
         this._stopKeepalive();
         this._rejectAll(new Error('Core disconnected'));
-        this.emit('disconnected', 'WebSocket closed');
+        if (!this.destroyed) this.emit('disconnected', 'WebSocket closed');
         if (!this.destroyed) this._scheduleReconnect();
       }
     });
 
-    ws.on('error', () => {
+    sock.on('error', (err: Error) => {
+      if (this.ws !== sock) return;
+      clearTimeout(timeout);
+      if (!opened) {
+        this._handlePrematureEnd(err.message || 'WebSocket error');
+        return;
+      }
       if (this._connected) {
         this._connected = false;
         this._stopKeepalive();
         this._rejectAll(new Error('Core WebSocket error'));
-        this.emit('disconnected', 'WebSocket error');
+        if (!this.destroyed) this.emit('disconnected', 'WebSocket error');
         if (!this.destroyed) this._scheduleReconnect();
       }
     });
+  }
+
+  /** First connect attempt failed before `open` */
+  private _handlePrematureEnd(reason: string) {
+    if (this.destroyed || this.hadSuccessfulConnection) return;
+    if (!this.retryInitialConnect) {
+      if (this.initialFailureEmitted) return;
+      this.initialFailureEmitted = true;
+      console.error(`[bridge] connect failed: ${reason}`);
+      this.emit('connect_failed', reason);
+      const w = this.ws;
+      this.ws = null;
+      w?.terminate();
+      return;
+    }
+    console.error(`[bridge] connect error: ${reason}`);
+    this._scheduleReconnect();
   }
 
   private _handleMessage(msg: QrcResponse) {
@@ -133,6 +184,7 @@ export class CoreBridge extends EventEmitter {
 
   private _scheduleReconnect() {
     if (this.destroyed) return;
+    if (!this.hadSuccessfulConnection && !this.retryInitialConnect) return;
     const delay = this.reconnectDelay;
     this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX_MS);
     console.log(`[bridge] reconnecting in ${delay}ms`);
@@ -157,6 +209,9 @@ export class CoreBridge extends EventEmitter {
   }
 
   private _stopKeepalive() {
-    if (this.keepAliveTimer) { clearInterval(this.keepAliveTimer); this.keepAliveTimer = null; }
+    if (this.keepAliveTimer) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
+    }
   }
 }

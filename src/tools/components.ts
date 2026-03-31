@@ -127,7 +127,10 @@ export async function handleGetComponentControls(params: Record<string, unknown>
 
   const { qrc } = await connectionManager.getClients(alias);
 
-  const result = (await qrc.call("Component.GetControls", { Name: component })) as Record<string, unknown>[];
+  const raw = await qrc.call("Component.GetControls", { Name: component });
+  const result = Array.isArray(raw)
+    ? (raw as Record<string, unknown>[])
+    : ((raw as { Controls?: Record<string, unknown>[] }).Controls ?? []);
 
   if (!Array.isArray(result) || result.length === 0) {
     return `No controls found for component '${component}'.`;
