@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
+# Ignore lockfiles except under web/ (reproducible UI installs)
 package-lock.json
+!web/**/package-lock.json
 yarn.lock
 
 # Build output
@@ -27,6 +29,8 @@ Icon*
 docs/
 plan.md
 CLAUDE.md
+# Cursor / exported planning specs (if copied into the repo)
+*.plan.md
 
 # Worktrees (isolated development branches)
 .worktrees/

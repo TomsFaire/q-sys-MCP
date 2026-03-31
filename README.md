@@ -10,6 +10,78 @@ An MCP (Model Context Protocol) server that connects Claude to live QSC Q-Sys Co
 - **Component inspection** — list components and read/write their controls
 - **Lua execution** — run scripts on the Core
 - **Dual protocol** — QRC (JSON-RPC, port 1710) primary with ECP (text, port 1702) fallback
+- **Optional web UI** — local browser control for gains, matrix, and EQ with live updates from the Core (see [Web UI](#web-ui-local-browser-control))
+
+## Web UI (local browser control)
+
+The repository includes **Q-Sys Control**, a small app under `web/`:
+
+- **Frontend:** React 18, Vite, TypeScript, Tailwind CSS — warm neutral palette, Inter + Lora typography, editorial layout (inspired by the Faire design language patterns: flat surfaces, 4px control radii, semantic status colors only).
+- **Backend:** Express + `ws` — one persistent **WebSocket QRC (QRWC)** connection to the Core (`wss://<host>:443/qrc-public-api/v0`), **Change Group** polling, and fan-out to every connected browser.
+
+Your browser only talks to `http://localhost` / `ws://localhost`, so you avoid self-signed certificate warnings and CORS issues that come from hitting the Core directly over `wss://`.
+
+### Features
+
+| Tab | What it controls |
+|-----|------------------|
+| **Gains** | Single-channel gain blocks (e.g. mics, music, Zoom, All Hands, speaker zones) — faders, dB readout, mute |
+| **Matrix** | Mixer crosspoint grid (e.g. 13×11) — per-cell gain, crosspoint mute, input row mute |
+| **EQ** | Parametric EQ instances — band frequency / gain / bandwidth, per-band bypass, master gain, SVG response curve |
+
+The backend loads a full control snapshot on connect, registers a Change Group, polls periodically, and pushes **deltas** so the UI stays aligned with the Core when something else moves a fader or route.
+
+### Requirements (same as MCP tools)
+
+Blocks you want to drive must have **Script Access → External** (or **All**) in Q-Sys Designer and the design pushed to the Core. Without that, the Change Group will not see those components.
+
+### Quick start (production)
+
+Compile the backend, build the frontend into `web/backend/dist/public`, then start the server (HTTP + browser WebSocket on one port):
+
+```bash
+cd web/backend && npm install && npm run build
+cd ../frontend && npm install && npm run build
+cd ../backend && npm start
+```
+
+Open **http://localhost:3001**. Environment variables (all optional):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `QSYS_HOST` | `10.4.18.1` | Core hostname or IP |
+| `QSYS_WS_PORT` | `443` | QRWC (WebSocket QRC) port |
+| `PORT` | `3001` | Local HTTP / WS port for the web UI |
+
+Example:
+
+```bash
+QSYS_HOST=192.168.1.50 QSYS_WS_PORT=443 PORT=3001 npm start
+```
+
+(Run the last command from `web/backend` after `npm run build`, or use `QSYS_HOST=… ./web/start.sh` from the repo root — the script rebuilds the frontend and starts the backend; run `npm run build` in `web/backend` at least once so `dist/server.js` exists.)
+
+### Development (Vite + hot reload)
+
+```bash
+QSYS_HOST=10.4.18.1 ./web/dev.sh
+```
+
+Then open **http://localhost:5173** — Vite proxies WebSocket traffic to the backend on port 3001.
+
+### Screenshots
+
+**Gains** — sources and speaker-zone trims after the Dante path:
+
+![Q-Sys Control — Gains tab](images/web-ui-gains.png)
+
+**Matrix** — crosspoints, input mutes on the row, per-cell gain and mute:
+
+![Q-Sys Control — Matrix tab](images/web-ui-matrix.png)
+
+**EQ** — pick a parametric EQ block, edit bands, optional bypass:
+
+![Q-Sys Control — EQ tab](images/web-ui-eq.png)
 
 ## Requirements
 
