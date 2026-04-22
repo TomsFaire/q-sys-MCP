@@ -160,6 +160,10 @@ export class ConnectionManager {
       const ecpPort = parts[2] ? parseInt(parts[2], 10) : undefined;
       const wsPort  = parts[3] ? parseInt(parts[3], 10) : undefined;
 
+      if (qrcPort !== undefined && isNaN(qrcPort)) throw new Error(`Invalid qrcPort in QSYS_CORES entry "${segment}"`);
+      if (ecpPort !== undefined && isNaN(ecpPort)) throw new Error(`Invalid ecpPort in QSYS_CORES entry "${segment}"`);
+      if (wsPort  !== undefined && isNaN(wsPort))  throw new Error(`Invalid wsPort in QSYS_CORES entry "${segment}"`);
+
       if (!host) {
         throw new Error(`Invalid QSYS_CORES entry "${segment}": host cannot be empty`);
       }
